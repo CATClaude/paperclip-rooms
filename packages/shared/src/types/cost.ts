@@ -1,5 +1,7 @@
 import type { BillingType } from "../constants.js";
 
+export type CostSource = "reported" | "estimated" | "unavailable";
+
 export interface CostEvent {
   id: string;
   companyId: string;
@@ -17,6 +19,8 @@ export interface CostEvent {
   cachedInputTokens: number;
   outputTokens: number;
   costCents: number;
+  costSource: CostSource;
+  costMetadata: Record<string, unknown> | null;
   occurredAt: Date;
   createdAt: Date;
 }
@@ -26,6 +30,15 @@ export interface CostSummary {
   spendCents: number;
   budgetCents: number;
   utilizationPercent: number;
+  estimatedMeteredCostCents: number;
+  estimatedMeteredInputTokens: number;
+  estimatedMeteredCachedInputTokens: number;
+  estimatedMeteredOutputTokens: number;
+  estimatedMeteredEventCount: number;
+  unavailableMeteredInputTokens: number;
+  unavailableMeteredCachedInputTokens: number;
+  unavailableMeteredOutputTokens: number;
+  unavailableMeteredEventCount: number;
 }
 
 export interface IssueCostSummary {
@@ -56,6 +69,15 @@ export interface CostByAgent {
   subscriptionCachedInputTokens: number;
   subscriptionInputTokens: number;
   subscriptionOutputTokens: number;
+  estimatedMeteredCostCents: number;
+  estimatedMeteredInputTokens: number;
+  estimatedMeteredCachedInputTokens: number;
+  estimatedMeteredOutputTokens: number;
+  estimatedMeteredEventCount: number;
+  unavailableMeteredInputTokens: number;
+  unavailableMeteredCachedInputTokens: number;
+  unavailableMeteredOutputTokens: number;
+  unavailableMeteredEventCount: number;
 }
 
 export interface CostByProviderModel {
@@ -72,6 +94,15 @@ export interface CostByProviderModel {
   subscriptionCachedInputTokens: number;
   subscriptionInputTokens: number;
   subscriptionOutputTokens: number;
+  estimatedMeteredCostCents: number;
+  estimatedMeteredInputTokens: number;
+  estimatedMeteredCachedInputTokens: number;
+  estimatedMeteredOutputTokens: number;
+  estimatedMeteredEventCount: number;
+  unavailableMeteredInputTokens: number;
+  unavailableMeteredCachedInputTokens: number;
+  unavailableMeteredOutputTokens: number;
+  unavailableMeteredEventCount: number;
 }
 
 export interface CostByBiller {
@@ -87,6 +118,15 @@ export interface CostByBiller {
   subscriptionOutputTokens: number;
   providerCount: number;
   modelCount: number;
+  estimatedMeteredCostCents: number;
+  estimatedMeteredInputTokens: number;
+  estimatedMeteredCachedInputTokens: number;
+  estimatedMeteredOutputTokens: number;
+  estimatedMeteredEventCount: number;
+  unavailableMeteredInputTokens: number;
+  unavailableMeteredCachedInputTokens: number;
+  unavailableMeteredOutputTokens: number;
+  unavailableMeteredEventCount: number;
 }
 
 /** per-agent breakdown by provider + model, for identifying token-hungry agents */
@@ -101,6 +141,15 @@ export interface CostByAgentModel {
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
+  estimatedMeteredCostCents: number;
+  estimatedMeteredInputTokens: number;
+  estimatedMeteredCachedInputTokens: number;
+  estimatedMeteredOutputTokens: number;
+  estimatedMeteredEventCount: number;
+  unavailableMeteredInputTokens: number;
+  unavailableMeteredCachedInputTokens: number;
+  unavailableMeteredOutputTokens: number;
+  unavailableMeteredEventCount: number;
 }
 
 /** spend per provider for a fixed rolling time window */

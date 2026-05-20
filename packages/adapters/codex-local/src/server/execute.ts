@@ -499,12 +499,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       Object.assign(env, paperclipBridge.env);
     }
   }
+  const billingEnv = { ...env };
   const effectiveEnv = Object.fromEntries(
     Object.entries({ ...process.env, ...env }).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",
     ),
   );
-  const billingType = resolveCodexBillingType(effectiveEnv);
+  const billingType = resolveCodexBillingType(billingEnv);
   const runtimeEnv = Object.fromEntries(
     Object.entries(ensurePathInEnv(effectiveEnv)).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",
@@ -809,13 +810,21 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       sessionParams: resolvedSessionParams,
       sessionDisplayId: resolvedSessionId,
       provider: "openai",
-      biller: resolveCodexBiller(effectiveEnv, billingType),
+      biller: resolveCodexBiller(billingEnv, billingType),
       model,
       billingType,
-      costUsd: null,
+      costUsd: attempt.parsed.costUsd,
+      costSource: attempt.parsed.costUsd != null ? "reported" : null,
+      costMetadata: attempt.parsed.costUsd != null
+        ? {
+            providerCostField: attempt.parsed.costField,
+            source: "codex_jsonl",
+          }
+        : null,
       resultJson: {
         stdout: attempt.proc.stdout,
         stderr: attempt.proc.stderr,
+        ...(attempt.parsed.costUsd != null ? { costUsd: attempt.parsed.costUsd, costField: attempt.parsed.costField } : {}),
         ...(transientUpstream ? { errorFamily: "transient_upstream" } : {}),
         ...(transientRetryNotBefore ? { retryNotBefore: transientRetryNotBefore.toISOString() } : {}),
         ...(transientRetryNotBefore ? { transientRetryNotBefore: transientRetryNotBefore.toISOString() } : {}),

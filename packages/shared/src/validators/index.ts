@@ -339,6 +339,7 @@ export {
 } from "./routine.js";
 
 export {
+  COST_SOURCES,
   createCostEventSchema,
   updateBudgetSchema,
   type CreateCostEvent,
