@@ -377,6 +377,7 @@ export interface IssueExecutionPolicy {
   commentRequired: boolean;
   stages: IssueExecutionStage[];
   monitor?: IssueExecutionMonitorPolicy | null;
+  skipHandoff?: boolean;
 }
 
 export interface IssueExecutionMonitorState {

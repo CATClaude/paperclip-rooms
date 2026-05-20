@@ -197,6 +197,7 @@ export const issueExecutionPolicySchema = z.object({
   commentRequired: z.boolean().optional().default(true),
   stages: z.array(issueExecutionStageSchema).default([]),
   monitor: issueExecutionMonitorPolicySchema.optional().nullable(),
+  skipHandoff: z.boolean().optional().default(false),
 });
 
 export const issueExecutionMonitorStateSchema = z.object({
