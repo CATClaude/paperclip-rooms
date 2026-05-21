@@ -326,14 +326,17 @@ This is an active-work continuity recovery.
 
 Startup recovery and periodic recovery are different from normal wakeup delivery.
 
-On startup and on the periodic recovery loop, Paperclip now does four things in sequence:
+On startup and on the periodic recovery loop, Paperclip now does five things in sequence:
 
 1. reap orphaned `running` runs
 2. resume persisted `queued` runs
 3. reconcile stranded assigned work
-4. scan silent active runs and create or update explicit watchdog recovery actions
+4. reconcile stale pending issue-thread interactions
+5. scan silent active runs and create or update explicit watchdog recovery actions
 
 The stranded-work pass closes the gap where issue state survives a crash but the wake/run path does not. The silent-run scan covers the separate case where a live process exists but has stopped producing observable output.
+
+The pending-interaction pass is conservative. Agent-wakeable pending interactions may queue a recovery wake when no matching wake is already queued. Operator-resolved interactions such as `request_confirmation` and `ask_user_questions` are not repeatedly routed once the source issue is already `blocked` or `in_review`; those statuses are explicit human gates, so each scheduler tick should skip them quietly instead of adding duplicate activity noise.
 
 ## 10. Silent Active-Run Watchdog
 
