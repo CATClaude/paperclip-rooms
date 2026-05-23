@@ -102,6 +102,7 @@ import {
 } from "@paperclipai/shared";
 import { redactHomePathUserSegments, redactHomePathUserSegmentsInValue } from "@paperclipai/adapter-utils";
 import { agentRouteRef } from "../lib/utils";
+import { resolveBundleDraft } from "../lib/bundle-draft";
 import {
   applyAgentSkillSnapshot,
   arraysEqual,
@@ -2000,14 +2001,13 @@ function PromptsTab({
 
   useEffect(() => {
     if (!bundle) return;
-    setBundleDraft((current) => {
-      if (current) return current;
-      return {
+    setBundleDraft((current) =>
+      resolveBundleDraft(current, {
         mode: persistedMode,
         rootPath: persistedRootPath,
         entryFile: bundle.entryFile,
-      };
-    });
+      }),
+    );
   }, [bundle, persistedMode, persistedRootPath]);
 
   useEffect(() => {
