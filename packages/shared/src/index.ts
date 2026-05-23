@@ -306,6 +306,7 @@ export type {
   AgentSkillSnapshot,
   AgentSkillSyncRequest,
   InstanceExperimentalSettings,
+  PluginCgroupLimits,
   InstanceGeneralSettings,
   InstanceSettings,
   IssueGraphLivenessAutoRecoveryPreview,
@@ -716,6 +717,7 @@ export {
   instanceExperimentalSettingsSchema,
   patchInstanceExperimentalSettingsSchema,
   issueGraphLivenessAutoRecoveryRequestSchema,
+  pluginCgroupLimitsSchema,
   type PatchInstanceExperimentalSettings,
   type IssueGraphLivenessAutoRecoveryRequest,
 } from "./validators/index.js";
