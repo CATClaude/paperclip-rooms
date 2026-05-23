@@ -85,6 +85,11 @@ import {
 } from "./run-liveness.js";
 import { logActivity, publishPluginDomainEvent, type LogActivityInput } from "./activity-log.js";
 import {
+  runPaperclipWorkerPreflight,
+  WorkerPreflightError,
+  WORKER_PREFLIGHT_ERROR_CODE,
+} from "./worker-preflight.js";
+import {
   buildWorkspaceReadyComment,
   cleanupExecutionWorkspaceArtifacts,
   ensureRuntimeServicesForRun,
@@ -7703,6 +7708,12 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
           (entry): entry is [string, string] => typeof entry[0] === "string" && typeof entry[1] === "string",
         ),
       );
+      await runPaperclipWorkerPreflight({
+        adapterType: agent.adapterType,
+        config: resolvedConfig,
+        env: adapterEnv,
+        onLog,
+      });
       const runtimeServices = await ensureRuntimeServicesForRun({
         db,
         runId: run.id,
@@ -8083,7 +8094,10 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         err instanceof Error ? err.message : "Unknown adapter failure",
         await getCurrentUserRedactionOptions(),
       );
-      logger.error({ err, runId }, "heartbeat execution failed");
+      const errorCode = err instanceof WorkerPreflightError
+        ? WORKER_PREFLIGHT_ERROR_CODE
+        : "adapter_failed";
+      logger.error({ err, runId, errorCode }, "heartbeat execution failed");
 
       let logSummary: { bytes: number; sha256?: string; compressed: boolean } | null = null;
       if (handle) {
@@ -8103,10 +8117,10 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
 
       const failedRun = await setRunStatus(run.id, "failed", {
         error: message,
-        errorCode: "adapter_failed",
+        errorCode,
         finishedAt: new Date(),
         resultJson: mergeRunStopMetadataForAgent(agent, "failed", {
-          errorCode: "adapter_failed",
+          errorCode,
           errorMessage: message,
         }),
         stdoutExcerpt,
