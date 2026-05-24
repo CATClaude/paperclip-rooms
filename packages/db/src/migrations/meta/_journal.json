@@ -631,6 +631,13 @@
       "when": 1779129600000,
       "tag": "0089_cloud_upstreams",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1779420192705,
+      "tag": "0090_resolve_stale_source_recovery_actions",
+      "breakpoints": true
     }
   ]
 }
