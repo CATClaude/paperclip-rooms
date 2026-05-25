@@ -681,7 +681,12 @@ export async function startServer(): Promise<StartedServer> {
   });
   process.env.PAPERCLIP_LISTEN_HOST = runtimeListenHost;
   process.env.PAPERCLIP_LISTEN_PORT = String(listenPort);
-  process.env.PAPERCLIP_RUNTIME_API_URL = runtimeApiUrl;
+  // Honor a pre-set PAPERCLIP_RUNTIME_API_URL (e.g. pinned to loopback) so the
+  // internal agent callback URL can be decoupled from the public hostname that
+  // allowedHostnames forces into runtimeApiUrl. Mirrors the PAPERCLIP_API_URL
+  // pattern above. Upstream issue: paperclipai/paperclip#6630.
+  process.env.PAPERCLIP_RUNTIME_API_URL =
+    process.env.PAPERCLIP_RUNTIME_API_URL?.trim() || runtimeApiUrl;
   process.env.PAPERCLIP_RUNTIME_API_CANDIDATES_JSON = JSON.stringify(runtimeApiCandidates);
   process.env.PAPERCLIP_API_URL = configuredApiUrl;
   
