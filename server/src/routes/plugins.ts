@@ -55,7 +55,7 @@ import type { PluginJobStore } from "../services/plugin-job-store.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import type { PluginStreamBus } from "../services/plugin-stream-bus.js";
 import type { PluginToolDispatcher } from "../services/plugin-tool-dispatcher.js";
-import type { ToolRunContext } from "@paperclipai/plugin-sdk";
+import type { PluginPerformActionActorContext, ToolRunContext } from "@paperclipai/plugin-sdk";
 import { JsonRpcCallError, PLUGIN_RPC_ERROR_CODES } from "@paperclipai/plugin-sdk";
 import {
   assertAuthenticated,
@@ -120,7 +120,7 @@ interface AvailablePluginExample {
   displayName: string;
   description: string;
   localPath: string;
-  tag: "example";
+  tag: "example" | "first-party";
 }
 
 /** Response body for GET /api/plugins/:pluginId/health */
@@ -152,6 +152,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
 
 const BUNDLED_PLUGIN_EXAMPLES: AvailablePluginExample[] = [
+  {
+    packageName: "@paperclipai/plugin-workspace-diff",
+    pluginKey: "paperclip.workspace-diff",
+    displayName: "Workspace Changes",
+    description: "First-party workspace Changes tab backed by plugin-local Git diff computation.",
+    localPath: "packages/plugins/plugin-workspace-diff",
+    tag: "first-party",
+  },
   {
     packageName: "@paperclipai/plugin-hello-world-example",
     pluginKey: "paperclip.hello-world-example",
@@ -586,6 +594,35 @@ export function pluginRoutes(
     return companyId;
   }
 
+  function performActionActorContext(req: Request, companyId: string | undefined): PluginPerformActionActorContext {
+    const scopedCompanyId = companyId ?? null;
+    if (req.actor.type === "agent") {
+      return {
+        type: "agent",
+        userId: null,
+        agentId: req.actor.agentId ?? null,
+        runId: req.actor.runId ?? null,
+        companyId: scopedCompanyId,
+      };
+    }
+    if (req.actor.type === "board") {
+      return {
+        type: "user",
+        userId: req.actor.userId ?? null,
+        agentId: null,
+        runId: req.actor.runId ?? null,
+        companyId: scopedCompanyId,
+      };
+    }
+    return {
+      type: "system",
+      userId: null,
+      agentId: null,
+      runId: req.actor.runId ?? null,
+      companyId: scopedCompanyId,
+    };
+  }
+
   async function validateToolRunContextScope(runContext: ToolRunContext): Promise<string | null> {
     const [agent] = await db
       .select({ companyId: agents.companyId })
@@ -998,6 +1035,12 @@ export function pluginRoutes(
             message: err.message,
             details: err.data,
           };
+        case PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED:
+          return {
+            code: "INVOCATION_SCOPE_DENIED",
+            message: err.message,
+            details: err.data,
+          };
         case PLUGIN_RPC_ERROR_CODES.TIMEOUT:
           return {
             code: "TIMEOUT",
@@ -1033,6 +1076,34 @@ export function pluginRoutes(
       code: "UNKNOWN",
       message,
     };
+  }
+
+  function attachPluginBridgeErrorContext(
+    req: Request,
+    res: Response,
+    err: unknown,
+    bridgeError: PluginBridgeErrorResponse,
+    metadata: Record<string, unknown>,
+  ): void {
+    const rootError = err instanceof Error ? err : new Error(String(err));
+    (res as any).__errorContext = {
+      error: {
+        message: bridgeError.message,
+        stack: rootError.stack,
+        name: rootError.name,
+        details: {
+          ...metadata,
+          bridgeCode: bridgeError.code,
+          bridgeDetails: bridgeError.details,
+        },
+      },
+      method: req.method,
+      url: req.originalUrl,
+      reqBody: req.body,
+      reqParams: req.params,
+      reqQuery: req.query,
+    };
+    (res as any).err = rootError;
   }
 
   /**
@@ -1086,6 +1157,11 @@ export function pluginRoutes(
         code: "WORKER_UNAVAILABLE",
         message: `Plugin is not ready (current status: ${plugin.status})`,
       };
+      attachPluginBridgeErrorContext(req, res, new Error(bridgeError.message), bridgeError, {
+        pluginId: plugin.id,
+        pluginKey: plugin.pluginKey,
+        bridgeMethod: "getData",
+      });
       res.status(502).json(bridgeError);
       return;
     }
@@ -1113,6 +1189,12 @@ export function pluginRoutes(
       res.json({ data: result });
     } catch (err) {
       const bridgeError = mapRpcErrorToBridgeError(err);
+      attachPluginBridgeErrorContext(req, res, err, bridgeError, {
+        pluginId: plugin.id,
+        pluginKey: plugin.pluginKey,
+        bridgeMethod: "getData",
+        dataKey: body.key,
+      });
       res.status(502).json(bridgeError);
     }
   });
@@ -1146,7 +1228,7 @@ export function pluginRoutes(
    * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
    */
   router.post("/plugins/:pluginId/bridge/action", async (req, res) => {
-    assertBoardOrgAccess(req);
+    assertAuthenticated(req);
 
     if (!bridgeDeps) {
       res.status(501).json({ error: "Plugin bridge is not enabled" });
@@ -1168,6 +1250,11 @@ export function pluginRoutes(
         code: "WORKER_UNAVAILABLE",
         message: `Plugin is not ready (current status: ${plugin.status})`,
       };
+      attachPluginBridgeErrorContext(req, res, new Error(bridgeError.message), bridgeError, {
+        pluginId: plugin.id,
+        pluginKey: plugin.pluginKey,
+        bridgeMethod: "performAction",
+      });
       res.status(502).json(bridgeError);
       return;
     }
@@ -1189,12 +1276,19 @@ export function pluginRoutes(
           key: body.key,
           companyId: companyId ?? null,
           params: body.params ?? {},
+          actorContext: performActionActorContext(req, companyId),
           renderEnvironment: body.renderEnvironment ?? null,
         },
       );
       res.json({ data: result });
     } catch (err) {
       const bridgeError = mapRpcErrorToBridgeError(err);
+      attachPluginBridgeErrorContext(req, res, err, bridgeError, {
+        pluginId: plugin.id,
+        pluginKey: plugin.pluginKey,
+        bridgeMethod: "performAction",
+        actionKey: body.key,
+      });
       res.status(502).json(bridgeError);
     }
   });
@@ -1251,6 +1345,12 @@ export function pluginRoutes(
         code: "WORKER_UNAVAILABLE",
         message: `Plugin is not ready (current status: ${plugin.status})`,
       };
+      attachPluginBridgeErrorContext(req, res, new Error(bridgeError.message), bridgeError, {
+        pluginId: plugin.id,
+        pluginKey: plugin.pluginKey,
+        bridgeMethod: "getData",
+        dataKey: key,
+      });
       res.status(502).json(bridgeError);
       return;
     }
@@ -1277,6 +1377,12 @@ export function pluginRoutes(
       res.json({ data: result });
     } catch (err) {
       const bridgeError = mapRpcErrorToBridgeError(err);
+      attachPluginBridgeErrorContext(req, res, err, bridgeError, {
+        pluginId: plugin.id,
+        pluginKey: plugin.pluginKey,
+        bridgeMethod: "getData",
+        dataKey: key,
+      });
       res.status(502).json(bridgeError);
     }
   });
@@ -1307,7 +1413,7 @@ export function pluginRoutes(
    * @see PLUGIN_SPEC.md §19.7 — Error Propagation Through The Bridge
    */
   router.post("/plugins/:pluginId/actions/:key", async (req, res) => {
-    assertBoardOrgAccess(req);
+    assertAuthenticated(req);
 
     if (!bridgeDeps) {
       res.status(501).json({ error: "Plugin bridge is not enabled" });
@@ -1329,6 +1435,12 @@ export function pluginRoutes(
         code: "WORKER_UNAVAILABLE",
         message: `Plugin is not ready (current status: ${plugin.status})`,
       };
+      attachPluginBridgeErrorContext(req, res, new Error(bridgeError.message), bridgeError, {
+        pluginId: plugin.id,
+        pluginKey: plugin.pluginKey,
+        bridgeMethod: "performAction",
+        actionKey: key,
+      });
       res.status(502).json(bridgeError);
       return;
     }
@@ -1349,12 +1461,19 @@ export function pluginRoutes(
           key,
           companyId: companyId ?? null,
           params: body?.params ?? {},
+          actorContext: performActionActorContext(req, companyId),
           renderEnvironment: body?.renderEnvironment ?? null,
         },
       );
       res.json({ data: result });
     } catch (err) {
       const bridgeError = mapRpcErrorToBridgeError(err);
+      attachPluginBridgeErrorContext(req, res, err, bridgeError, {
+        pluginId: plugin.id,
+        pluginKey: plugin.pluginKey,
+        bridgeMethod: "performAction",
+        actionKey: key,
+      });
       res.status(502).json(bridgeError);
     }
   });
@@ -1546,7 +1665,10 @@ export function pluginRoutes(
     } catch (err) {
       const status = typeof (err as { status?: unknown }).status === "number"
         ? (err as { status: number }).status
-        : err instanceof JsonRpcCallError && err.code === PLUGIN_RPC_ERROR_CODES.CAPABILITY_DENIED
+        : err instanceof JsonRpcCallError && (
+          err.code === PLUGIN_RPC_ERROR_CODES.CAPABILITY_DENIED ||
+          err.code === PLUGIN_RPC_ERROR_CODES.INVOCATION_SCOPE_DENIED
+        )
           ? 403
           : err instanceof JsonRpcCallError && err.code === PLUGIN_RPC_ERROR_CODES.METHOD_NOT_IMPLEMENTED
             ? 501
