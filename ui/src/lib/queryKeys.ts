@@ -134,6 +134,7 @@ export const queryKeys = {
     experimentalSettings: ["instance", "experimental-settings"] as const,
     dataRecovery: ["instance", "data-recovery"] as const,
   },
+  cloudUpstreams: (companyId: string) => ["cloud-upstreams", companyId] as const,
   health: ["health"] as const,
   secrets: {
     list: (companyId: string) => ["secrets", companyId] as const,
