@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, CloudUpload, KeyRound, MailPlus, MonitorCog, Puzzle, Settings, SlidersHorizontal, Users } from "lucide-react";
+import { ArchiveRestore, ChevronLeft, CloudUpload, KeyRound, MailPlus, MonitorCog, Puzzle, Settings, SlidersHorizontal, Users } from "lucide-react";
+import { accessApi } from "@/api/access";
 import { sidebarBadgesApi } from "@/api/sidebarBadges";
 import { instanceSettingsApi } from "@/api/instanceSettings";
 import { ApiError } from "@/api/client";
@@ -13,6 +14,11 @@ import { SidebarNavItem } from "./SidebarNavItem";
 export function CompanySettingsSidebar() {
   const { selectedCompany, selectedCompanyId } = useCompany();
   const { isMobile, setSidebarOpen } = useSidebar();
+  const { data: boardAccess } = useQuery({
+    queryKey: queryKeys.access.currentBoardAccess,
+    queryFn: () => accessApi.getCurrentBoardAccess(),
+    retry: false,
+  });
   const { slots: companySettingsPluginSlots } = usePluginSlots({
     slotTypes: ["companySettingsPage"],
     companyId: selectedCompanyId,
@@ -36,6 +42,7 @@ export function CompanySettingsSidebar() {
     retry: false,
     refetchInterval: 15_000,
   });
+  const canManageDataRecovery = boardAccess?.source === "local_implicit" || boardAccess?.isInstanceAdmin;
   const { data: experimentalSettings } = useQuery({
     queryKey: queryKeys.instance.experimentalSettings,
     queryFn: () => instanceSettingsApi.getExperimental(),
@@ -100,6 +107,14 @@ export function CompanySettingsSidebar() {
             ))}
           <SidebarNavItem to="/company/settings/invites" label="Invites" icon={MailPlus} end />
           <SidebarNavItem to="/company/settings/secrets" label="Secrets" icon={KeyRound} end />
+          {canManageDataRecovery ? (
+            <SidebarNavItem
+              to={`/instance/settings/data-recovery?companyId=${encodeURIComponent(selectedCompanyId ?? "")}`}
+              label="Data Recovery"
+              icon={ArchiveRestore}
+              end
+            />
+          ) : null}
         </div>
       </nav>
     </aside>

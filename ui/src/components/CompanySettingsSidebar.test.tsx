@@ -10,6 +10,9 @@ const sidebarNavItemMock = vi.hoisted(() => vi.fn());
 const mockSidebarBadgesApi = vi.hoisted(() => ({
   get: vi.fn(),
 }));
+const mockAccessApi = vi.hoisted(() => ({
+  getCurrentBoardAccess: vi.fn(),
+}));
 const mockUsePluginSlots = vi.hoisted(() => vi.fn());
 const mockInstanceSettingsApi = vi.hoisted(() => ({
   getExperimental: vi.fn(),
@@ -65,6 +68,10 @@ vi.mock("@/api/sidebarBadges", () => ({
   sidebarBadgesApi: mockSidebarBadgesApi,
 }));
 
+vi.mock("@/api/access", () => ({
+  accessApi: mockAccessApi,
+}));
+
 vi.mock("@/plugins/slots", () => ({
   usePluginSlots: mockUsePluginSlots,
 }));
@@ -94,6 +101,14 @@ describe("CompanySettingsSidebar", () => {
       approvals: 0,
       failedRuns: 0,
       joinRequests: 2,
+    });
+    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({
+      user: null,
+      userId: "local-board",
+      isInstanceAdmin: true,
+      companyIds: ["company-1"],
+      source: "local_implicit",
+      keyId: null,
     });
     mockUsePluginSlots.mockReturnValue({
       slots: [],
@@ -134,6 +149,7 @@ describe("CompanySettingsSidebar", () => {
     expect(container.textContent).not.toContain("Cloud upstream");
     expect(container.textContent).toContain("Invites");
     expect(container.textContent).toContain("Secrets");
+    expect(container.textContent).toContain("Data Recovery");
     expect(sidebarNavItemMock).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "/company/settings",
@@ -168,6 +184,49 @@ describe("CompanySettingsSidebar", () => {
         to: "/company/settings/secrets",
         label: "Secrets",
         end: true,
+      }),
+    );
+    expect(sidebarNavItemMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "/instance/settings/data-recovery?companyId=company-1",
+        label: "Data Recovery",
+        end: true,
+      }),
+    );
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("hides data recovery for non-instance-admin users", async () => {
+    mockAccessApi.getCurrentBoardAccess.mockResolvedValue({
+      user: { id: "user-1", email: "user@example.com", name: "User", image: null },
+      userId: "user-1",
+      isInstanceAdmin: false,
+      companyIds: ["company-1"],
+      source: "session",
+      keyId: null,
+    });
+    const root = createRoot(container);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <CompanySettingsSidebar />
+        </QueryClientProvider>,
+      );
+    });
+    await flushReact();
+
+    expect(container.textContent).toContain("Secrets");
+    expect(container.textContent).not.toContain("Data Recovery");
+    expect(sidebarNavItemMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Data Recovery",
       }),
     );
 
